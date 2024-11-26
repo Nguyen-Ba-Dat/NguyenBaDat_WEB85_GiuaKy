@@ -1,11 +1,11 @@
 import express from 'express';
 import mongoose from 'mongoose';
 import { v4 as uuidv4 } from 'uuid';
-import UserModel from './model/users.js';
-import PostModel from './model/post.js';
+import useModel from './model/users.js';  
+import postModel from './model/post.js';  
 import { authenUser } from './middleware/checkApiKey.js';
 
-mongoose.connect('mongodb+srv://web85_mindx:web85_mindx_password@cluster0.r1fmx.mongodb.net/WEB85')
+mongoose.connect('mongodb+srv://web85_mindx:web85_mindx_password@cluster0.r1fmx.mongodb.net/WEB85');
 
 const app = express();
 app.use(express.json());
@@ -19,12 +19,13 @@ app.post("/users/register", async (req, res) => {
   }
 
   try {
-    const existingUser = await UserModel.findOne({ email });
+    const existingUser = await useModel.findOne({ email });
     if (existingUser) {
       return res.status(400).json({ message: "Email already exists." });
     }
 
-    const newUser = new UserModel({ userName, email, password, apiKey: null });
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const newUser = new useModel({ userName, email, password: hashedPassword, apiKey: null });
     await newUser.save();
 
     res.status(201).json({ message: "User registered successfully." });
@@ -42,10 +43,11 @@ app.post("/users/login", async (req, res) => {
   }
 
   try {
-    const user = await UserModel.findOne({ email });
+    const user = await useModel.findOne({ email });
     if (!user) return res.status(400).json({ message: "Wrong email or password" });
 
-    if (user.password !== password) {
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) {
       return res.status(400).json({ message: "Wrong email or password" });
     }
 
@@ -70,15 +72,15 @@ app.post("/users/login", async (req, res) => {
 
 // API post
 app.post("/posts", authenUser, async (req, res) => {
-  const { userId, content } = req.body;
+  const { content } = req.body;
 
-  if (!userId || !content) {
+  if (!content) {
     return res.status(400).json({ message: "Missing required fields." });
   }
 
   try {
-    const post = new PostModel({
-      userId: req.user._id, 
+    const post = new postModel({
+      userId: req.user._id,
       content,
     });
 
@@ -89,7 +91,7 @@ app.post("/posts", authenUser, async (req, res) => {
   }
 });
 
-// API cap nhat pót
+// API update post
 app.put("/posts/:id", authenUser, async (req, res) => {
   const { id } = req.params;
   const { content } = req.body;
@@ -99,13 +101,13 @@ app.put("/posts/:id", authenUser, async (req, res) => {
   }
 
   try {
-    const post = await PostModel.findById(id);
+    const post = await postModel.findById(id);
 
     if (!post) {
       return res.status(404).json({ message: "Post not found." });
     }
 
-    if (post.userId !== req.user._id) {
+    if (post.userId.toString() !== req.user._id.toString()) {
       return res.status(403).json({ message: "You are not authorized to update this post." });
     }
 
@@ -113,13 +115,11 @@ app.put("/posts/:id", authenUser, async (req, res) => {
     post.updatedAt = new Date();
 
     await post.save();
-    res.status(201).json({ message: "Post updated successfully.", post });
+    res.status(200).json({ message: "Post updated successfully.", post });
   } catch (error) {
     res.status(403).json({ message: error.message });
   }
 });
-
-app.use("/posts", authenUser);  
 
 app.listen(8080, () => {
   console.log('Server is running');
