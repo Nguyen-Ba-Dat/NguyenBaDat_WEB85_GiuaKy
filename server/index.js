@@ -1,8 +1,9 @@
 import express from 'express';
 import mongoose from 'mongoose';
 import { v4 as uuidv4 } from 'uuid';
-import useModel from './model/users.js';  
-import postModel from './model/post.js';  
+import bcrypt from 'bcryptjs';  
+import useModel from './model/users.js';
+import postModel from './model/post.js';
 import { authenUser } from './middleware/checkApiKey.js';
 
 mongoose.connect('mongodb+srv://web85_mindx:web85_mindx_password@cluster0.r1fmx.mongodb.net/WEB85');
@@ -46,6 +47,7 @@ app.post("/users/login", async (req, res) => {
     const user = await useModel.findOne({ email });
     if (!user) return res.status(400).json({ message: "Wrong email or password" });
 
+   
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
       return res.status(400).json({ message: "Wrong email or password" });
